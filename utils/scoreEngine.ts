@@ -3,11 +3,90 @@ import { NoteData } from "./audio";
 
 export class ScoreEngine {
   private osmd: OpenSheetMusicDisplay;
-  private cursorMoved: boolean = false;
+  private isPlaying: boolean = false;
+  private bpm: number = 60;
+  private noteTimer: NodeJS.Timeout | null = null;
+  private currentNoteHit: boolean = false;
+  private onComplete: (() => void) | null = null;
 
   constructor(osmd: OpenSheetMusicDisplay) {
     this.osmd = osmd;
     console.log("ScoreEngine: Initialized with OSMD instance");
+  }
+
+  public setBPM(bpm: number) {
+    this.bpm = bpm;
+  }
+
+  public setOnComplete(callback: () => void) {
+    this.onComplete = callback;
+  }
+
+  public start() {
+    if (this.isPlaying) return;
+    this.isPlaying = true;
+    this.processCurrentNote();
+  }
+
+  public stop() {
+    this.isPlaying = false;
+    if (this.noteTimer) {
+      clearTimeout(this.noteTimer);
+      this.noteTimer = null;
+    }
+  }
+
+  private processCurrentNote() {
+    if (!this.isPlaying) return;
+    if (!this.osmd.cursor) return;
+
+    // Ensure valid notes under cursor
+    const notes = this.osmd.cursor.NotesUnderCursor();
+    if (!notes || notes.length === 0) {
+      // End of score or empty measure
+      // Try next step immediately? Or finish?
+      // For now, let's treat expectedNotes length check as end condition logic
+    }
+
+    // Reset hit state for new note
+    this.currentNoteHit = false;
+
+    // Calculate duration
+    // RealValue 0.25 = Quarter Note = 1 Beat
+    // Duration (ms) = (RealValue * 4) * (60000 / BPM)
+    // Example: Quarter(0.25) * 4 = 1.  At 60BPM (60000ms per beat) -> 1000ms.
+    let durationMs = 1000; // Default
+
+    const iterator = this.osmd.cursor.Iterator;
+    if (iterator && iterator.CurrentVoiceEntries && iterator.CurrentVoiceEntries.length > 0) {
+      const firstNote = iterator.CurrentVoiceEntries[0].Notes[0];
+      if (firstNote && firstNote.Length) {
+        const realValue = firstNote.Length.RealValue;
+        durationMs = (realValue * 4) * (60000 / this.bpm);
+      }
+    }
+
+    // console.log(`ScoreEngine: Processing Note. Duration: ${durationMs}ms`);
+
+    // Set Timer for next move
+    this.noteTimer = setTimeout(() => {
+      if (!this.currentNoteHit) {
+        // Time's up and no hit -> MISS
+        console.log("Time's up! MISS.");
+        this.colorCurrentNotes("#ef4444"); // Red
+      }
+
+      // Move to next
+      if (this.osmd.cursor.Iterator.EndReached) {
+        console.log("ScoreEngine: End reached");
+        this.stop();
+        if (this.onComplete) this.onComplete();
+      } else {
+        this.next();
+        // Recursive loop
+        this.processCurrentNote();
+      }
+    }, durationMs);
   }
 
   public getExpectedNotes(): { note: string; octave: number }[] {
@@ -43,11 +122,11 @@ export class ScoreEngine {
           if (fundamentalNote !== undefined) {
             const tones = ["C", "D", "E", "F", "G", "A", "B"];
             const noteChar = tones[fundamentalNote];
-            
+
             // halfTone 기반 옥타브 계산 (예: Middle C = 48 -> 48/12 = 4)
             const halfTone = (note.Pitch as any).halfTone;
             let calculatedOctave = (note.Pitch as any).octave; // Fallback
-            
+
             if (halfTone !== undefined) {
               calculatedOctave = Math.floor(halfTone / 12);
               // console.log(`ScoreEngine: Calculated octave ${calculatedOctave} from halfTone ${halfTone}`);
@@ -92,13 +171,18 @@ export class ScoreEngine {
     return expectedNotes;
   }
 
-  public compareAndMove(playedNote: NoteData): boolean {
-    console.log("ScoreEngine: compareAndMove called with:", playedNote);
+  public checkInput(playedNote: NoteData): boolean {
+    if (!this.isPlaying) return false;
+
+    // If already hit, specific to this note, don't re-process (optional)
+    if (this.currentNoteHit) return true;
+
+    // console.log("ScoreEngine: compareAndMove called with:", playedNote);
     const expected = this.getExpectedNotes();
-    console.log("ScoreEngine: Expected notes:", expected);
+    // console.log("ScoreEngine: Expected notes:", expected);
 
     if (expected.length === 0) {
-      console.log("ScoreEngine: No expected notes, ignoring input");
+      // console.log("ScoreEngine: No expected notes, ignoring input");
       return false;
     }
 
@@ -110,19 +194,18 @@ export class ScoreEngine {
     if (match) {
       console.log("HIT! Coloring Green");
       this.colorCurrentNotes("#22c55e"); // Green-500
-      this.next();
+      this.currentNoteHit = true;
+      // Do NOT call next() here. The timer handles it.
       return true;
-    } else {
-      console.log("MISS! Coloring Red");
-      this.colorCurrentNotes("#ef4444"); // Red-500
     }
+
     return false;
   }
 
   public next() {
     if (this.osmd.cursor) {
       this.osmd.cursor.next();
-      this.cursorMoved = true;
+      // cursorMoved logic removed as it's no longer needed for step-mode
     }
   }
 

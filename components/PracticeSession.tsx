@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
-import AudioAnalyzer from "@/components/AudioAnalyzer";
+import React, { useRef, useState, useEffect } from 'react';
+import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
 import ScoreViewer from "@/components/ScoreViewer";
-import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
+import AudioAnalyzer from "@/components/AudioAnalyzer";
 import { ScoreEngine } from "@/utils/scoreEngine";
 import { NoteData } from "@/utils/audio";
 
@@ -12,42 +12,79 @@ interface PracticeSessionProps {
 }
 
 const PracticeSession: React.FC<PracticeSessionProps> = ({ fileUrl }) => {
-  const [lastNote, setLastNote] = useState<NoteData | null>(null);
   const scoreEngineRef = useRef<ScoreEngine | null>(null);
+  // Remove unused state
+  // const [lastNote, setLastNote] = useState<NoteData | null>(null);
 
-  // Callback when OSMD is ready
+  // Callback from ScoreViewer
   const handleOSMDLoad = (osmd: OpenSheetMusicDisplay) => {
     console.log("PracticeSession: OSMD Loaded, initializing Engine");
     scoreEngineRef.current = new ScoreEngine(osmd);
   };
 
-  // Callback from AudioAnalyzer
+  // When a note is picked up by the analyzer
   const handleNoteDetected = (noteData: NoteData | null) => {
-    setLastNote(noteData);
-    console.log("PracticeSession: Note Detected:", noteData);
+    // Ignore null data or if engine not ready
+    if (!noteData || !scoreEngineRef.current) return;
 
-    if (noteData) {
-      if (scoreEngineRef.current) {
-        console.log("PracticeSession: Engine found, calling compareAndMove");
-        scoreEngineRef.current.compareAndMove(noteData);
-      } else {
-        console.warn("PracticeSession: Engine ref is NULL - Note detected but engine not ready");
-      }
+    scoreEngineRef.current.checkInput(noteData);
+  };
+
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const handleStart = () => {
+    if (scoreEngineRef.current) {
+      scoreEngineRef.current.start();
+      setIsPlaying(true);
     }
   };
 
-  return (
-    <div className="flex flex-col gap-6 w-full h-full">
-      <div className="w-full flex flex-col md:flex-row gap-6 h-full">
-        <div className="flex-1 min-h-[400px] h-full bg-white rounded-xl shadow-lg ring-4 ring-gray-800 flex flex-col">
-          <div className="flex-1 overflow-auto p-2">
-            <ScoreViewer fileUrl={fileUrl} onOSMDLoad={handleOSMDLoad} />
-          </div>
-        </div>
+  const handleStop = () => {
+    if (scoreEngineRef.current) {
+      scoreEngineRef.current.stop();
+      setIsPlaying(false);
+    }
+  };
 
-        <div className="w-full md:w-80 flex-shrink-0 flex items-start justify-center pt-8">
-          <AudioAnalyzer onNoteDetected={handleNoteDetected} />
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (scoreEngineRef.current) scoreEngineRef.current.stop();
+    }
+  }, []);
+
+  return (
+    <div className="flex flex-col h-full w-full max-w-none bg-neutral-900 text-white overflow-hidden">
+      {/* Top Section: Score */}
+      <div className="flex-1 w-full bg-white relative overflow-hidden">
+        <ScoreViewer
+          fileUrl="/scores/sample.musicxml"
+          onOSMDLoad={handleOSMDLoad}
+        />
+
+        {/* Controls Overlay */}
+        <div className="absolute top-4 right-4 flex gap-2">
+          {!isPlaying ? (
+            <button
+              onClick={handleStart}
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-full font-bold shadow-lg transition"
+            >
+              Start Rhythm
+            </button>
+          ) : (
+            <button
+              onClick={handleStop}
+              className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-full font-bold shadow-lg transition"
+            >
+              Stop
+            </button>
+          )}
         </div>
+      </div>
+
+      {/* Bottom Section: Audio/Piano */}
+      <div className="flex-none w-full h-[35vh] min-h-[300px] border-t border-neutral-800 bg-black">
+        <AudioAnalyzer onNoteDetected={handleNoteDetected} />
       </div>
     </div>
   );
