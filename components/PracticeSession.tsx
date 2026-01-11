@@ -20,6 +20,9 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({ fileUrl }) => {
   const [countdown, setCountdown] = useState<number | null>(null);
 
   const handleStart = () => {
+    if (scoreEngineRef.current) {
+      scoreEngineRef.current.reset(); // Reset score on start
+    }
     setCountdown(3); // Start Countdown
   };
 

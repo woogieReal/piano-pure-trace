@@ -36,6 +36,38 @@ export class ScoreEngine {
     }
   }
 
+  public reset() {
+    this.stop();
+    if (this.osmd.cursor) {
+      this.osmd.cursor.reset();
+    }
+
+    // Clear persistent color from source notes
+    // We need to traverse the entire music sheet model to reset NoteheadColor
+    const sheet = (this.osmd as any).Sheet;
+    if (sheet) {
+      // Iterate all measures, parts, voices... this is complex in OSMD structure.
+      // Easier way: OSMD provides SourceMeasures.
+      sheet.SourceMeasures.forEach((measure: any) => {
+        measure.VerticalSourceStaffEntryContainers.forEach((container: any) => {
+          container.StaffEntries.forEach((staffEntry: any) => {
+            staffEntry.VoiceEntries.forEach((voiceEntry: any) => {
+              voiceEntry.Notes.forEach((note: any) => {
+                // Reset color to custom string "" or undefined, or standard black
+                note.NoteheadColor = "#000000";
+              });
+            });
+          });
+        });
+      });
+    }
+
+    // Re-render to clear all custom colors/styles (clean slate)
+    this.osmd.render();
+    this.osmd.cursor.show(); // Ensure cursor is visible after render
+    console.log("ScoreEngine: Reset complete (cursor reset + re-render + color cleared)");
+  }
+
   private processCurrentNote() {
     if (!this.isPlaying) return;
     if (!this.osmd.cursor) return;
