@@ -28,8 +28,6 @@ const ScoreViewer: React.FC<ScoreViewerProps> = ({ fileUrl, onOSMDLoad }) => {
       drawFingerings: true,
       followCursor: true,
     });
-    osmdRef.current = osmd;
-    if (onOSMDLoad) onOSMDLoad(osmd);
 
     // Load and render
     const loadScore = async () => {
@@ -37,7 +35,17 @@ const ScoreViewer: React.FC<ScoreViewerProps> = ({ fileUrl, onOSMDLoad }) => {
         await osmd.load(fileUrl);
         await osmd.render();
         // Enable cursor after render
-        if (osmd.cursor) osmd.cursor.show();
+        if (osmd.cursor) {
+          osmd.cursor.show();
+          osmd.cursor.reset(); // Ensure valid start state
+        }
+
+        // Notify parent only after full load to ensure cursor is ready
+        if (onOSMDLoad) onOSMDLoad(osmd);
+
+        // DEBUG: Expose to window
+        (window as any).osmd = osmd;
+
       } catch (err: any) {
         console.error("OSMD Load Error:", err);
         setError(err.message || "Failed to load score");
@@ -48,8 +56,6 @@ const ScoreViewer: React.FC<ScoreViewerProps> = ({ fileUrl, onOSMDLoad }) => {
 
     // Clean up
     return () => {
-      // OSMD doesn't have a strict destroy method that clears DOM perfectly in all versions, 
-      // but we can clear the container if needed.
       if (containerRef.current) containerRef.current.innerHTML = '';
       osmdRef.current = null;
     };
