@@ -40,14 +40,23 @@ export class ScoreEngine {
           const fundamentalNote = (note.Pitch as any).fundamentalNote;
           const octave = (note.Pitch as any).octave;
 
-          if (fundamentalNote !== undefined && octave !== undefined) {
+          if (fundamentalNote !== undefined) {
             const tones = ["C", "D", "E", "F", "G", "A", "B"];
-            let noteChar = tones[fundamentalNote];
+            const noteChar = tones[fundamentalNote];
+            
+            // halfTone 기반 옥타브 계산 (예: Middle C = 48 -> 48/12 = 4)
+            const halfTone = (note.Pitch as any).halfTone;
+            let calculatedOctave = (note.Pitch as any).octave; // Fallback
+            
+            if (halfTone !== undefined) {
+              calculatedOctave = Math.floor(halfTone / 12);
+              // console.log(`ScoreEngine: Calculated octave ${calculatedOctave} from halfTone ${halfTone}`);
+            }
 
             if (noteChar) {
               expectedNotes.push({
                 note: noteChar,
-                octave: octave
+                octave: calculatedOctave
               });
               return; // Continue to next note
             }
