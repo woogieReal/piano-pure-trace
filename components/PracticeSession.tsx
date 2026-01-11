@@ -31,11 +31,13 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({ fileUrl }) => {
   };
 
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isMicActive, setIsMicActive] = useState(false);
 
   const handleStart = () => {
     if (scoreEngineRef.current) {
       scoreEngineRef.current.start();
       setIsPlaying(true);
+      setIsMicActive(true); // Auto-enable Mic
     }
   };
 
@@ -43,6 +45,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({ fileUrl }) => {
     if (scoreEngineRef.current) {
       scoreEngineRef.current.stop();
       setIsPlaying(false);
+      setIsMicActive(false); // Auto-disable Mic
     }
   };
 
@@ -69,7 +72,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({ fileUrl }) => {
               onClick={handleStart}
               className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-full font-bold shadow-lg transition"
             >
-              Start Rhythm
+              Start
             </button>
           ) : (
             <button
@@ -84,7 +87,10 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({ fileUrl }) => {
 
       {/* Bottom Section: Audio/Piano */}
       <div className="flex-none w-full h-[35vh] min-h-[300px] border-t border-neutral-800 bg-black">
-        <AudioAnalyzer onNoteDetected={handleNoteDetected} />
+        <AudioAnalyzer
+          isActive={isMicActive}
+          onNoteDetected={handleNoteDetected}
+        />
       </div>
     </div>
   );

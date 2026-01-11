@@ -40,22 +40,27 @@ export class ScoreEngine {
     if (!this.isPlaying) return;
     if (!this.osmd.cursor) return;
 
+    // Check if end reached
+    if (this.osmd.cursor.Iterator.EndReached) {
+      console.log("ScoreEngine: End reached");
+      this.stop();
+      if (this.onComplete) this.onComplete();
+      return;
+    }
+
     // Ensure valid notes under cursor
     const notes = this.osmd.cursor.NotesUnderCursor();
+    // If no notes but not end, it might be a rest or hidden measure, handle gracefully
     if (!notes || notes.length === 0) {
-      // End of score or empty measure
-      // Try next step immediately? Or finish?
-      // For now, let's treat expectedNotes length check as end condition logic
+      // console.warn("ScoreEngine: No notes under cursor, but not end. Moving next.");
     }
 
     // Reset hit state for new note
     this.currentNoteHit = false;
 
     // Calculate duration
-    // RealValue 0.25 = Quarter Note = 1 Beat
-    // Duration (ms) = (RealValue * 4) * (60000 / BPM)
-    // Example: Quarter(0.25) * 4 = 1.  At 60BPM (60000ms per beat) -> 1000ms.
-    let durationMs = 1000; // Default
+    // Formula: Quarter(0.25) -> 1 * (60000/BPM)
+    let durationMs = 1000; // Default fallback
 
     const iterator = this.osmd.cursor.Iterator;
     if (iterator && iterator.CurrentVoiceEntries && iterator.CurrentVoiceEntries.length > 0) {
@@ -66,7 +71,10 @@ export class ScoreEngine {
       }
     }
 
-    // console.log(`ScoreEngine: Processing Note. Duration: ${durationMs}ms`);
+    // Safety clamp (minimum 100ms)
+    durationMs = Math.max(durationMs, 100);
+
+    // console.log(`ScoreEngine: Processing Note. Duration: ${durationMs.toFixed(0)}ms`);
 
     // Set Timer for next move
     this.noteTimer = setTimeout(() => {
@@ -76,16 +84,10 @@ export class ScoreEngine {
         this.colorCurrentNotes("#ef4444"); // Red
       }
 
-      // Move to next
-      if (this.osmd.cursor.Iterator.EndReached) {
-        console.log("ScoreEngine: End reached");
-        this.stop();
-        if (this.onComplete) this.onComplete();
-      } else {
-        this.next();
-        // Recursive loop
-        this.processCurrentNote();
-      }
+      this.next();
+
+      // Recursive loop
+      this.processCurrentNote();
     }, durationMs);
   }
 
@@ -248,8 +250,11 @@ export class ScoreEngine {
                 const children = svg.querySelectorAll("path, ellipse, rect, polygon");
                 children.forEach(child => {
                   child.setAttribute("fill", color);
-                  (child as HTMLElement).style.fill = color;
-                  (child as HTMLElement).style.stroke = color;
+                  child.setAttribute("stroke", color); // Also stroke just in case
+
+                  // Force style override for pesky VexFlow defaults
+                  (child as HTMLElement).style.setProperty("fill", color, "important");
+                  (child as HTMLElement).style.setProperty("stroke", color, "important");
                 });
 
                 console.log(`ScoreEngine: Applied SVG color to element [${svgIdx}] and ${children.length} children. Old fill: ${oldFill}, New fill: ${color}`);

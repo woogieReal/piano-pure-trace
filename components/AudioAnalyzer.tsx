@@ -6,9 +6,10 @@ import { getNoteFromFrequency, NoteData } from '@/utils/audio';
 
 interface AudioAnalyzerProps {
   onNoteDetected?: (noteData: NoteData | null) => void;
+  isActive?: boolean;
 }
 
-const AudioAnalyzer: React.FC<AudioAnalyzerProps> = ({ onNoteDetected }) => {
+const AudioAnalyzer: React.FC<AudioAnalyzerProps> = ({ onNoteDetected, isActive = false }) => {
   const [isListening, setIsListening] = useState(false);
   const [noteData, setNoteData] = useState<NoteData | null>(null);
   const [clarity, setClarity] = useState(0);
@@ -23,7 +24,22 @@ const AudioAnalyzer: React.FC<AudioAnalyzerProps> = ({ onNoteDetected }) => {
   // Mock Mode State
   const [isMockMode, setIsMockMode] = useState(false);
 
+  // Effect to sync with isActive prop
+  useEffect(() => {
+    if (isActive) {
+      if (!isListening) startListening();
+    } else {
+      if (isListening) stopListening();
+    }
+  }, [isActive]);
+
   const startListening = async () => {
+    // If mock mode is forced or error occurred previously, mock might be enabled
+    if (isMockMode) {
+      setIsListening(true);
+      return;
+    }
+
     setErrorMsg(null);
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -80,7 +96,7 @@ const AudioAnalyzer: React.FC<AudioAnalyzerProps> = ({ onNoteDetected }) => {
   };
 
   const updatePitch = () => {
-    if (isMockMode) return; // Don't use real audio loop in mock mode
+    if (isMockMode || !isListening) return; // Don't use real audio loop in mock mode
 
     if (!analyserRef.current || !audioContextRef.current) return;
 
@@ -183,7 +199,7 @@ const AudioAnalyzer: React.FC<AudioAnalyzerProps> = ({ onNoteDetected }) => {
             </div>
           </>
         ) : (
-          <span className="text-gray-500">{isMockMode ? "Select Note" : "Listening..."}</span>
+          <span className="text-gray-500">{isActive ? "Listening..." : "Paused"}</span>
         )}
 
         {/* Volume Ring */}
@@ -203,15 +219,7 @@ const AudioAnalyzer: React.FC<AudioAnalyzerProps> = ({ onNoteDetected }) => {
       </div>
 
       {!isMockMode && (
-        <button
-          onClick={isListening ? stopListening : startListening}
-          className={`px-8 py-3 rounded-full font-semibold transition-all shadow-lg transform active:scale-95 ${isListening
-            ? 'bg-red-500 hover:bg-red-600 text-white shadow-red-500/30'
-            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/30'
-            }`}
-        >
-          {isListening ? 'Stop Mic' : 'Start Mic'}
-        </button>
+        <div className="h-4"></div> /* Spacer instead of buttons */
       )}
 
       {isMockMode && (
